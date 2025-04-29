@@ -225,7 +225,7 @@ int main() {
     DDRF = 0b00000011;
     DDRD = 0b11111111;
     DDRB = 0b11111111;
-    CLKPR = 0b10000011;
+    // CLKPR = 0b10000011;
     PORTF = 0b00000000;
     PORTD = 0b00000000;
     PORTB = 0b00000000;
@@ -261,8 +261,9 @@ int main() {
         // printf("\n PACKET PARITY 0b");
         send_bit(packets[i].parity);
         send_bit(1);
+
         // printf("\n");
-        // _delay_ms(500);
+        _delay_us(500);
 
         // PINB ^= 0b10;
         // get_mouse_vector();
