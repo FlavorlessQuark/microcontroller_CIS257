@@ -1,3 +1,4 @@
+
 #include <avr/io.h>
 #include <util/delay.h>
 #include <stdio.h>
@@ -91,6 +92,42 @@ void get_mouse_vector() {
 
 static char clock;
 static char parity;
+
+// void send_fakebit(char bit) {
+//     PORTD = bit | clock;
+//     // _delay_ms(1);
+//     // clock ^= 0b10;
+//     // PORTD = bit | clock;
+//     // PORTD = 1;
+//     // _delay_ms(5);
+// }
+// void send_bit(char bit) {
+//     clock ^= 0b10;
+//     PORTD = bit | clock;
+//     // _delay_ms(1);
+//     // clock ^= 0b10;
+//     // PORTD = bit | clock;
+//     // PORTD = 1;
+//     // _delay_ms(5);
+//     // printf("%d", bit);
+//     // send_fakebit(bit);
+// }
+
+
+// void send_byte(char byte) {
+//     char pinval = 0;
+//     for (char i = 0; i < __CHAR_BIT__ ; ++i) {
+//         if (byte & (1U << i)) {
+//             pinval |= 1;
+//             parity ^= 1;
+//         }
+//         send_bit(pinval);
+//         _delay_us(25);
+//     }
+// }
+
+
+
 void send_bit(char bit) {
     clock ^= 0b10;
     PORTD = bit | clock;
@@ -98,42 +135,31 @@ void send_bit(char bit) {
     // clock ^= 0b10;
     // PORTD = bit | clock;
     // PORTD = 1;
-    // _delay_ms(5);
-    // printf("%d", bit);
 }
-void send_fakebit(char bit) {
-    PORTD = bit | clock;
-    // _delay_ms(1);
-    // clock ^= 0b10;
-    // PORTD = bit | clock;
-    // PORTD = 1;
-    // _delay_ms(5);
-    // printf("%d", bit);
-}
-
 void send_byte(char byte) {
     char pinval = 0;
-    for (char i = 0; i < __CHAR_BIT__ ; ++i) {
-    //    if (i % 2)
-    //    {
+    for (char i = 0; i < __CHAR_BIT__ * 2; ++i) {
+       if (i % 2)
+       {
             pinval = 0;
-        if (byte & (1U << i)) {
-            pinval |= 1;
-            parity ^= 1;
+            if (byte & (1U << i/2)) {
+                pinval |= 1;
+                parity ^= 1;
+            }
+            else {
+                pinval &= 0;
+            }
+            //  _delay_us(5);
         }
-        else {
-            pinval &= 0;
-        }
-        //      _delay_us(25);
-        // }
         // else {
-        //     _delay_us(30);
+        //     _delay_us(10);
         // }
+        _delay_us(60);
         send_bit(pinval);
-        send_fakebit(pinval);
-
     }
 }
+
+
 void send_packets() {
     parity = 0;
     clock = 0;
@@ -245,25 +271,37 @@ int main() {
     stdout = &serial_stream;
     int i = 0;
     while(1) {
-        ticks++;
-        if (ticks >=250) {
-            i = (i + 1) % 4;
-            ticks = 0;
-            // printf(":SWITCH DIR %d\n", i);
-        }
-        send_bit(0);
+        // ticks++;
+        // if (ticks >=250) {
+        //     i = (i + 1) % 4;
+        //     ticks = 0;
+        //     // printf(":SWITCH DIR %d\n", i);
+        // }
+        clock = 0b10;
+        // send_bit(0);
+        // send_bit(0);
+        // send_bit(0);
+        // send_bit(0);
+        // send_bit(0);
+        // send_bit(1);
+        // send_bit(0);
+        // send_bit(0);
+        // send_bit(0);
         // printf("PACKET PART 1 0b");
+        send_bit(0);
         send_byte(packets[i]._0);
-        // printf("\n PACKET PART 2 0b");
         send_byte(packets[i]._1);
-        // printf("\n PACKET PART 3 0b");
         send_byte(packets[i]._2);
-        // printf("\n PACKET PARITY 0b");
+        // printf("\n PACKET PART 2 0b");
+        // send_byte(packets[i]._1);
+        // // printf("\n PACKET PART 3 0b");
+        // send_byte(packets[i]._2);
+        // // printf("\n PACKET PARITY 0b");
         send_bit(packets[i].parity);
         send_bit(1);
 
         // printf("\n");
-        _delay_us(500);
+        _delay_ms(50);
 
         // PINB ^= 0b10;
         // get_mouse_vector();
