@@ -277,7 +277,7 @@ int main() {
         //     ticks = 0;
         //     // printf(":SWITCH DIR %d\n", i);
         // }
-        clock = 0b10;
+        clock = 0b00;
         // send_bit(0);
         // send_bit(0);
         // send_bit(0);
