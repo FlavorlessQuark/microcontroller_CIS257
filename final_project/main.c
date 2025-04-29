@@ -289,18 +289,32 @@ int main() {
         // send_bit(0);
         // printf("PACKET PART 1 0b");
         send_bit(0);
-        send_byte(packets[i]._0);
-        send_byte(packets[i]._1);
-        send_byte(packets[i]._2);
+        send_byte(packets[0]._0);
+        send_byte(packets[0]._1);
+        send_byte(packets[0]._2);
         // printf("\n PACKET PART 2 0b");
         // send_byte(packets[i]._1);
         // // printf("\n PACKET PART 3 0b");
         // send_byte(packets[i]._2);
         // // printf("\n PACKET PARITY 0b");
-        send_bit(packets[i].parity);
+        send_bit(packets[0].parity);
         send_bit(1);
 
         // printf("\n");
+        _delay_ms(50);
+
+        send_bit(0);
+        send_byte(packets[1]._0);
+        send_byte(packets[1]._1);
+        send_byte(packets[1]._2);
+        // printf("\n PACKET PART 2 0b");
+        // send_byte(packets[i]._1);
+        // // printf("\n PACKET PART 3 0b");
+        // send_byte(packets[i]._2);
+        // // printf("\n PACKET PARITY 0b");
+        send_bit(packets[1].parity);
+        send_bit(1);
+
         _delay_ms(50);
 
         // PINB ^= 0b10;
