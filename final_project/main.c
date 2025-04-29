@@ -98,27 +98,39 @@ void send_bit(char bit) {
     // clock ^= 0b10;
     // PORTD = bit | clock;
     // PORTD = 1;
+    // _delay_ms(5);
+    // printf("%d", bit);
+}
+void send_fakebit(char bit) {
+    PORTD = bit | clock;
+    // _delay_ms(1);
+    // clock ^= 0b10;
+    // PORTD = bit | clock;
+    // PORTD = 1;
+    // _delay_ms(5);
+    // printf("%d", bit);
 }
 
 void send_byte(char byte) {
     char pinval = 0;
-    for (char i = 0; i < __CHAR_BIT__ * 2; ++i) {
-       if (i % 2)
-       {
+    for (char i = 0; i < __CHAR_BIT__ ; ++i) {
+    //    if (i % 2)
+    //    {
             pinval = 0;
-            if (byte & (1U << i/2)) {
-                pinval |= 1;
-                parity ^= 1;
-            }
-            else {
-                pinval &= 0;
-            }
-             _delay_us(25);
+        if (byte & (1U << i)) {
+            pinval |= 1;
+            parity ^= 1;
         }
         else {
-            _delay_us(30);
+            pinval &= 0;
         }
+        //      _delay_us(25);
+        // }
+        // else {
+        //     _delay_us(30);
+        // }
         send_bit(pinval);
+        send_fakebit(pinval);
 
     }
 }
@@ -200,6 +212,15 @@ void send_packets() {
     pin_accumulator[V] = 0;
 }
 
+
+typedef struct packet {
+    char _0;
+    char _1;
+    char _2;
+    char parity;
+}           Packet;
+
+
 int main() {
     DDRF = 0b00000011;
     DDRD = 0b11111111;
@@ -211,22 +232,47 @@ int main() {
 
     pin_accumulator[H] = 0;
     pin_accumulator[V] = 0;
+    Packet packets[4] = {0};
+
+    packets[0] = (Packet){._0 = 0b00001000, ._1 = 0b00000001, ._2 = 0b00000000, .parity = 1};
+    packets[1] = (Packet){._0 = 0b00101000, ._1 = 0b00000000, ._2 = 0b00000001, .parity = 0};
+    packets[2] = (Packet){._0 = 0b00011000, ._1 = 0b00000000, ._2 = 0b00000000, .parity = 1};
+    packets[3] = (Packet){._0 = 0b00001000, ._1 = 0b00000001, ._2 = 0b00000001, .parity = 1};
+
 
     USART_Init(6);
     clock = 0;
     stdout = &serial_stream;
-
+    int i = 0;
     while(1) {
         ticks++;
-        // PINB ^= 0b10;
-        get_mouse_vector();
-        // out_data((char)(ticks));
-        // send_byte(0b10110001);
-        if (ticks >= 255 && (pin_accumulator[H] != 0 || pin_accumulator[V] != 0)) { //delay sending packets to collect data
-            // printf("H : %d V : %d\n", pin_accumulator[H], pin_accumulator[V]);
-            send_packets();
+        if (ticks >=250) {
+            i = (i + 1) % 4;
             ticks = 0;
+            // printf(":SWITCH DIR %d\n", i);
         }
+        send_bit(0);
+        // printf("PACKET PART 1 0b");
+        send_byte(packets[i]._0);
+        // printf("\n PACKET PART 2 0b");
+        send_byte(packets[i]._1);
+        // printf("\n PACKET PART 3 0b");
+        send_byte(packets[i]._2);
+        // printf("\n PACKET PARITY 0b");
+        send_bit(packets[i].parity);
+        send_bit(1);
+        // printf("\n");
+        // _delay_ms(500);
+
+        // PINB ^= 0b10;
+        // get_mouse_vector();
+        // // out_data((char)(ticks));
+        // // send_byte(0b10110001);
+        // if (ticks >= 10 && (pin_accumulator[H] != 0 || pin_accumulator[V] != 0)) { //delay sending packets to collect data
+        //     // printf("H : %d V : %d\n", pin_accumulator[H], pin_accumulator[V]);
+        //     send_packets();
+        //     ticks = 0;
+        // }
     }
 
 }
