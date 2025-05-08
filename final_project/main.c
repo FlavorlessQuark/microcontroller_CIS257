@@ -127,10 +127,12 @@ static char parity;
 // }
 
 
-
-void send_bit(char bit) {
+static char bit;
+void send_bit(char _bit) {
     clock ^= 0b10;
-    PORTD = bit | clock;
+    PORTD = _bit | clock;
+    _delay_us(30);
+
     // _delay_ms(1);
     // clock ^= 0b10;
     // PORTD = bit | clock;
@@ -138,26 +140,28 @@ void send_bit(char bit) {
 }
 void send_byte(char byte) {
     char pinval = 0;
-    for (char i = 0; i < __CHAR_BIT__ * 2; ++i) {
-       if (i % 2)
-       {
+    clock = 0b00;
+
+    bit = 0;
+    send_bit(bit);
+    send_bit(bit);
+
+    for (char i = 0; i < __CHAR_BIT__; ++i) {
             pinval = 0;
-            if (byte & (1U << i/2)) {
-                pinval |= 1;
+            if (byte & (1U << i)) {
+                pinval = 1;
                 parity ^= 1;
             }
             else {
-                pinval &= 0;
+                pinval = 0;
             }
-            //  _delay_us(5);
+            bit = pinval;
+            send_bit(bit);
+            send_bit(bit);
+
         }
-        // else {
-        //     _delay_us(10);
-        // }
-        _delay_us(60);
-        send_bit(pinval);
-    }
 }
+
 
 
 void send_packets() {
@@ -247,6 +251,20 @@ typedef struct packet {
 }           Packet;
 
 
+void send_packet_byte(char byte) {
+
+    bit = 1;
+    clock = 0;
+    send_bit(bit);
+    _delay_us(200);
+
+    send_byte(packets._0);
+
+    send_bit(parity);
+    bit = 1;
+    send_bit(bit);
+}
+
 int main() {
     DDRF = 0b00000011;
     DDRD = 0b11111111;
@@ -267,55 +285,15 @@ int main() {
 
 
     USART_Init(6);
-    clock = 0;
     stdout = &serial_stream;
     int i = 0;
+    bit = 1;
     while(1) {
-        // ticks++;
-        // if (ticks >=250) {
-        //     i = (i + 1) % 4;
-        //     ticks = 0;
-        //     // printf(":SWITCH DIR %d\n", i);
-        // }
-        clock = 0b00;
-        // send_bit(0);
-        // send_bit(0);
-        // send_bit(0);
-        // send_bit(0);
-        // send_bit(0);
-        // send_bit(1);
-        // send_bit(0);
-        // send_bit(0);
-        // send_bit(0);
-        // printf("PACKET PART 1 0b");
-        send_bit(0);
-        send_byte(packets[0]._0);
-        send_byte(packets[0]._1);
-        send_byte(packets[0]._2);
-        // printf("\n PACKET PART 2 0b");
-        // send_byte(packets[i]._1);
-        // // printf("\n PACKET PART 3 0b");
-        // send_byte(packets[i]._2);
-        // // printf("\n PACKET PARITY 0b");
-        send_bit(packets[0].parity);
-        send_bit(1);
 
-        // printf("\n");
-        _delay_ms(50);
-
-        send_bit(0);
-        send_byte(packets[1]._0);
-        send_byte(packets[1]._1);
-        send_byte(packets[1]._2);
-        // printf("\n PACKET PART 2 0b");
-        // send_byte(packets[i]._1);
-        // // printf("\n PACKET PART 3 0b");
-        // send_byte(packets[i]._2);
-        // // printf("\n PACKET PARITY 0b");
-        send_bit(packets[1].parity);
-        send_bit(1);
-
-        _delay_ms(50);
+        send_packet_byte(packets[0]._0);
+        send_packet_byte(packets[0]._1);
+        send_packet_byte(packets[0]._2);
+        _delay_us(500);
 
         // PINB ^= 0b10;
         // get_mouse_vector();
