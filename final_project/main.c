@@ -12,13 +12,21 @@
 #define HORIZONTAL_DIR (PINF & 0b100000) >> 5
 #define VERTICAL_DIST (PINF & 0b10000000) >> 7
 #define VERTICAL_DIR (PINF & 0b10000) >> 4
-
-
 #define SET_BIT(number, n, value) (number | (value << n ))
 // A0 A3 UD (PF7.PF4)
 // A1 A2 LR (PF6 PF5)
 
+typedef struct packet {
+    char _0;
+    char _1;
+    char _2;
+    char parity;
+}           Packet;
 
+unsigned int ticks;
+uint8_t pin_status[2] = {0};
+char pin_accumulator[2] = {0};
+char rm_stat = 0;
 
 static int USART_Transmit(char data, FILE *_ );
 static FILE serial_stream = FDEV_SETUP_STREAM(USART_Transmit, NULL, _FDEV_SETUP_WRITE);
@@ -46,24 +54,14 @@ static int USART_Transmit(char data, FILE *_ )
 }
 
 
-
-
-void transmit_status(int horizontal, int vertical) {
-    printf("Velocity: Horizontal %4lu | Vertical %4lu\n", horizontal, vertical);
-}
-
-
-unsigned int ticks;
-    uint8_t pin_status[2] = {0};
-    char pin_accumulator[2] = {0};
 void get_mouse_vector() {
     ticks++;
 
         if (!pin_status[H] && HORIZONTAL_DIST){
             if (HORIZONTAL_DIR)
-                pin_accumulator[H] -= 1;
-            else
                 pin_accumulator[H] += 1;
+            else
+                pin_accumulator[H] -= 1;
         }
 
         pin_status[H] = HORIZONTAL_DIST;
@@ -74,69 +72,18 @@ void get_mouse_vector() {
             else
                 pin_accumulator[V] += 1;
         }
-
+        rm_stat = PINB & 0b10;
         pin_status[V] = VERTICAL_DIST;
-
-        // if (ticks >= MAX_TICKS_BEFORE_TRANSMIT) {
-
-        //     ticks = 0;
-        //     printf("H%03d V%03d\n",
-        //         pin_accumulator[H],
-        //         pin_accumulator[V]
-        //     );
-
-
-        // }
-
 }
 
 static char clock;
 static char parity;
-
-// void send_fakebit(char bit) {
-//     PORTD = bit | clock;
-//     // _delay_ms(1);
-//     // clock ^= 0b10;
-//     // PORTD = bit | clock;
-//     // PORTD = 1;
-//     // _delay_ms(5);
-// }
-// void send_bit(char bit) {
-//     clock ^= 0b10;
-//     PORTD = bit | clock;
-//     // _delay_ms(1);
-//     // clock ^= 0b10;
-//     // PORTD = bit | clock;
-//     // PORTD = 1;
-//     // _delay_ms(5);
-//     // printf("%d", bit);
-//     // send_fakebit(bit);
-// }
-
-
-// void send_byte(char byte) {
-//     char pinval = 0;
-//     for (char i = 0; i < __CHAR_BIT__ ; ++i) {
-//         if (byte & (1U << i)) {
-//             pinval |= 1;
-//             parity ^= 1;
-//         }
-//         send_bit(pinval);
-//         _delay_us(25);
-//     }
-// }
-
-
 static char bit;
 void send_bit(char _bit) {
     clock ^= 0b10;
     PORTD = _bit | clock;
     _delay_us(30);
 
-    // _delay_ms(1);
-    // clock ^= 0b10;
-    // PORTD = bit | clock;
-    // PORTD = 1;
 }
 void send_byte(char byte) {
     char pinval = 0;
@@ -147,24 +94,24 @@ void send_byte(char byte) {
     send_bit(bit);
 
     for (char i = 0; i < __CHAR_BIT__; ++i) {
-            pinval = 0;
-            if (byte & (1U << i)) {
-                pinval = 1;
-                parity ^= 1;
-            }
-            else {
-                pinval = 0;
-            }
-            bit = pinval;
-            send_bit(bit);
-            send_bit(bit);
-
+        pinval = 0;
+        if (byte & (1U << i)) {
+            pinval = 1;
+            parity ^= 1;
         }
+        else {
+            pinval = 0;
+        }
+        bit = pinval;
+        send_bit(bit);
+        send_bit(bit);
+    }
 }
 
 
 
 void send_packets() {
+    Packet packet;
     parity = 0;
     clock = 0;
     /*
@@ -189,9 +136,8 @@ void send_packets() {
         if number is negative this is + 1 * (1)
         if number is positive this is + 1 * (0)
      */
-    char horizontal = (pin_accumulator[H] ^ (pin_accumulator[H] >> (__CHAR_BIT__ - 1))) + !!(1 * (pin_accumulator[H] & 0b10000000)); //inverse two's complement
-    char vertical = (pin_accumulator[V] ^ (pin_accumulator[V] >> (__CHAR_BIT__ - 1))) + !!(1 * (pin_accumulator[V] & 0b10000000)); //inverse two's complement
-
+    packet._1 = (pin_accumulator[H] ^ (pin_accumulator[H] >> (__CHAR_BIT__ - 1))) + !!(1 * (pin_accumulator[H] & 0b10000000)); //inverse two's complement
+    packet._2 = (pin_accumulator[V] ^ (pin_accumulator[V] >> (__CHAR_BIT__ - 1))) + !!(1 * (pin_accumulator[V] & 0b10000000)); //inverse two's complement
 
     /*
         Here we just want to set the X direction and Y direction bits (number always starts at 0)
@@ -202,53 +148,26 @@ void send_packets() {
 
         !!(pin & 0b1000000) sets the value to be the sign (msb) of pin (!! operator explained in previous comment)
      */
-    // uint8_t packet = (uint8_t)SET_BIT((uint8_t)0b00001000, (uint8_t)5, !!((uint8_t)(pin_accumulator[V] & 0b10000000)));
-    //  */
-    uint8_t direction_packet = SET_BIT(
+    packet._0 = SET_BIT(
             (uint8_t)SET_BIT((uint8_t)0b00001000, (uint8_t)5, !!((uint8_t)(pin_accumulator[V] & 0b10000000))),
             (uint8_t)4,
             !!((uint8_t)(pin_accumulator[H] & 0b10000000)));
-    // printf("Packet 1 : ");
-    // for (int i = __CHAR_BIT__ -1; i >= 0; --i) {
-    //     printf("%d", !!((1 << i) & packet));
-    // }
-    // printf("packet 1: 0x%x\n",
-    //     SET_BIT(
-    //         (uint8_t)SET_BIT((uint8_t)0b00001000, (uint8_t)5, !!((uint8_t)(pin_accumulator[V] & 0b10000000))),
-    //         (uint8_t)4,
-    //         !!((uint8_t)(pin_accumulator[H] & 0b10000000)))); // First packet, set H and V direction
-    // printf("\n H actual %4d absolute (%4d) sign %c | V actual %4d absolute (%4d) sign %c\n",
-    //     pin_accumulator[H], horizontal,
-    //     ((pin_accumulator[H] & (1 << 7)) ? '-' : '+'),
-    //     pin_accumulator[V], vertical,
-    //     ((pin_accumulator[V] & (1 << 7)) ? '-' : '+')
-    //     );
-    // send_byte(
-    //     SET_BIT(
-    //         (uint8_t)SET_BIT((uint8_t)0, (uint8_t)5, !!((uint8_t)(pin_accumulator[V] & 0b10000000))),
-    //         (uint8_t)4,
-    //         !!((uint8_t)(pin_accumulator[H] & 0b10000000)))); // First packet, set H and V direction
 
-    send_bit(0); //LOW start bit
-    send_byte(direction_packet);
-    send_byte(horizontal);
-    send_byte(vertical);
-    // send_byte(ticks);
-    // _delay_ms(10);
-    send_bit(parity);
-    send_bit(1); //HIGH STOP BIT
-    //PARITYL (NUMBER OF 1 BIT ) 1 ODD 0 EVEN
+    packet._0 |= (rm_stat);
+    printf("%c%c%c", packet._0, packet._1, packet._2);
+
+        send_bit(0); //LOW start bit
+        send_byte(packet._0);
+        send_byte(packet._1);
+        send_byte(packet._2);
+        send_bit(parity);
+        send_bit(1); //HIGH STOP BIT
+
     pin_accumulator[H] = 0;
     pin_accumulator[V] = 0;
 }
 
 
-typedef struct packet {
-    char _0;
-    char _1;
-    char _2;
-    char parity;
-}           Packet;
 
 
 void send_packet_byte(char byte) {
@@ -258,10 +177,11 @@ void send_packet_byte(char byte) {
     send_bit(bit);
     _delay_us(200);
 
-    send_byte(packets._0);
+    send_byte(byte);
 
     send_bit(parity);
     bit = 1;
+    clock = 0;
     send_bit(bit);
 }
 
@@ -276,34 +196,19 @@ int main() {
 
     pin_accumulator[H] = 0;
     pin_accumulator[V] = 0;
-    Packet packets[4] = {0};
-
-    packets[0] = (Packet){._0 = 0b00001000, ._1 = 0b00000001, ._2 = 0b00000000, .parity = 1};
-    packets[1] = (Packet){._0 = 0b00101000, ._1 = 0b00000000, ._2 = 0b00000001, .parity = 0};
-    packets[2] = (Packet){._0 = 0b00011000, ._1 = 0b00000000, ._2 = 0b00000000, .parity = 1};
-    packets[3] = (Packet){._0 = 0b00001000, ._1 = 0b00000001, ._2 = 0b00000001, .parity = 1};
-
 
     USART_Init(6);
     stdout = &serial_stream;
     int i = 0;
-    bit = 1;
     while(1) {
 
-        send_packet_byte(packets[0]._0);
-        send_packet_byte(packets[0]._1);
-        send_packet_byte(packets[0]._2);
-        _delay_us(500);
+        ticks++;
 
-        // PINB ^= 0b10;
-        // get_mouse_vector();
-        // // out_data((char)(ticks));
-        // // send_byte(0b10110001);
-        // if (ticks >= 10 && (pin_accumulator[H] != 0 || pin_accumulator[V] != 0)) { //delay sending packets to collect data
-        //     // printf("H : %d V : %d\n", pin_accumulator[H], pin_accumulator[V]);
-        //     send_packets();
-        //     ticks = 0;
-        // }
+        get_mouse_vector();
+        if (rm_stat || (ticks >= 10 && (pin_accumulator[H] != 0 || pin_accumulator[V] != 0))) { //delay sending packets to collect data
+            send_packets();
+            ticks = 0;
+        }
     }
 
 }

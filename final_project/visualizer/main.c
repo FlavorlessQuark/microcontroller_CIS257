@@ -1,85 +1,115 @@
 #include "includes/SDLX/SDLX.h"
-#include <sys/inotify.h>
-    #include <stdio.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <sys/types.h>
-#include <sys/inotify.h>
-#include <unistd.h>
-
-#define EVENT_SIZE  (sizeof(struct inotify_event))
-#define BUF_LEN     (10 * (EVENT_SIZE + 16))
-
-int pos_x = DEFAULT_WIN_W /2;
-int pos_y = DEFAULT_WIN_H /2;
-
-int file_watch(int fd, int wd) {
-
-    int length, i = 0;
-    char buffer[BUF_LEN];
+#include "includes/decoder.h"
 
 
-    length = read(fd, buffer, BUF_LEN);
 
-    if (length < 0) {
-        // perror("read");
-        return 0;
+void init (int *fd, struct termios *oldtio, struct termios *newtio) {
+	#ifndef _DEBUG_OUT
+        SDLX_InitDefault();
+    #endif
+
+
+    *fd = open(SERIALSOURCE, O_RDWR);
+    if (*fd < 0) {
+        printf("Error %d opening port: %s\n", errno, strerror(errno));
     }
+    else
+        printf("Success!\n");
 
-    printf("Reading events\n");
-    while (i < length) {
-        struct inotify_event *event =
-            (struct inotify_event *) &buffer[i];
-        if (event->len) {
-            if (event->mask & IN_CREATE) {
-                printf("The file %s was created.\n", event->name);
-            } else if (event->mask & IN_DELETE) {
-                printf("The file %s was deleted.\n", event->name);
-            } else if (event->mask & IN_MODIFY) {
-                printf("The file %s was modified.\n", event->name);
-            }
-        }
-        i += EVENT_SIZE + event->len;
+    tcgetattr(*fd, oldtio); /* save current port settings */
+
+    bzero(newtio, sizeof(newtio));
+    newtio->c_cflag = BAUDRATE | CRTSCTS| CS8 | CLOCAL | CREAD;
+    newtio->c_iflag = IGNPAR;
+    newtio->c_oflag = 0;
+    newtio->c_lflag = 0;/* set input mode (non-canonical, no echo,...) */
+    newtio->c_cc[VTIME]    = 1;   /*no timer*/
+    newtio->c_cc[VMIN]     = CHAR_COUNT;   /* blocking read until 3 chars received */
+
+    tcflush(*fd, TCIFLUSH); /* Flush data */
+    tcsetattr(*fd,TCSANOW, newtio);/* Set new port settings */
+}
+
+void parse_input(char buffer[3], SDL_Rect * rect, int *speed) {
+    static int bl_state = 0;
+    static int br_state = 0;
+    Packet packet = {
+        .data.raw = buffer[0],
+        .horizontal = buffer[1],
+        .vertical = buffer[2]
+    };
+    int x = packet.horizontal;
+    int y = packet.vertical;
+
+    if (packet.data.bits.x_sign)
+        x *= -1;
+    if (packet.data.bits.y_sign)
+        y *= -1;
+
+    #ifdef _DEBUG_OUT
+        printf(" x move %d, y move %d speed %d\n ", x, y, *speed);
+        printf("button state L prv %d curr %d \n", bl_state, packet.data.bits.button_left);
+        printf("button state R prv %d curr %d \n", br_state, packet.data.bits.button_right);
+    #endif
+
+    if (br_state == 0 && packet.data.bits.button_right == 1) {
+        *speed = ((*speed + 5) % 21) + 1;
     }
-
-    printf("returning at end\n");
-
-    return 0;
+    br_state = packet.data.bits.button_right;
+    rect->x += *speed * x;
+    rect->y += *speed * y;
 }
 
 int main()
 {
-    int fd;
-    int wd;
-	SDLX_RectContainer *root;
 	SDLX_Display *display;
+    SDL_Rect rect = {.x = DEFAULT_WIN_W /2, .y = DEFAULT_WIN_H / 2, .w = 10, .h = 10};
 
-	SDLX_InitDefault();
+    int fd;
+    int speed = 1;
+    int res;
+    char buff[CHAR_COUNT + 1];
+    struct termios oldtio, newtio;
 
-    fd = inotify_init();
+    init(&fd, &oldtio, &newtio);
 
-    if (fd < 0) {
-        perror("inotify_init");
+    #ifndef _DEBUG_OUT
+        display = SDLX_DisplayGet();
+    #endif
+    while (1) {       /* loop for input */
+        #ifndef _DEBUG_OUT
+            SDL_SetRenderDrawColor(display->renderer, 0, 0, 0, 0xFF);
+            SDLX_RenderReset(display);
+            SDLX_InputLoop();
+            SDL_SetRenderDrawColor(display->renderer, 0xFF, 0, 0, 0xFF);
+            SDL_RenderFillRect(display->renderer, &rect);
+            SDL_RenderPresent(display->renderer);
+        #endif
+        if ((res = read(fd,buff,sizeof(char) * CHAR_COUNT) < 0))
+            printf("No data (this shouldn't happen)\n");
+        else {
+            parse_input(buff, &rect, &speed);
+        }
+        #ifdef _DEBUG_OUT
+            print_bits(buff[0]);
+            print_bits(buff[1]);
+            print_bits(buff[2]);
+            print_data(buff);
+            printf(" DONE \n");
+        #endif
     }
+    tcsetattr(fd,TCSANOW,&oldtio);
 
-    wd = inotify_add_watch(fd, ".",
-        IN_MODIFY | IN_CREATE | IN_DELETE);
-	// cleanupUIConfig(root);
-	display = SDLX_DisplayGet();
-    SDL_Rect rect = {.x = DEFAULT_WIN_W /2, .y = DEFAULT_WIN_H / 2, .w = 4, .h = 4};
 
-	while (1)
-	{
-        SDL_SetRenderDrawColor(display->renderer, 0, 0, 0, 0xFF);
-		SDLX_RenderReset(display);
-		SDLX_InputLoop();
-        file_watch(fd, wd);
-        SDL_SetRenderDrawColor(display->renderer, 0xFF, 0, 0, 0xFF);
-        SDL_RenderDrawRect(display->renderer, &rect);
-		SDL_RenderPresent(display->renderer);
-	}
-	SDLX_RenderQueuesCleanup();
 
-    inotify_rm_watch(fd, wd);
-    close(fd);
+	// while (1)
+	// {
+    //     SDL_SetRenderDrawColor(display->renderer, 0, 0, 0, 0xFF);
+	// 	SDLX_RenderReset(display);
+	// 	SDLX_InputLoop();
+    //     SDL_SetRenderDrawColor(display->renderer, 0xFF, 0, 0, 0xFF);
+    //     SDL_RenderDrawRect(display->renderer, &rect);
+	// 	SDL_RenderPresent(display->renderer);
+	// }
+
 }
