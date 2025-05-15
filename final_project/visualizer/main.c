@@ -71,7 +71,7 @@ void parse_input(char buffer[3], SDL_Rect * rect, int *speed) {
 int main()
 {
 	SDLX_Display *display;
-    SDL_Rect rect = {.x = DEFAULT_WIN_W /2, .y = DEFAULT_WIN_H / 2, .w = 10, .h = 10};
+    SDL_Rect rect = {.x = DEFAULT_WIN_W, .y = DEFAULT_WIN_H, .w = 10, .h = 10};
 
     int fd;
     int speed = 5;
