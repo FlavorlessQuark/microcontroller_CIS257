@@ -23,7 +23,7 @@ void init (int *fd, struct termios *oldtio, struct termios *newtio) {
     newtio->c_iflag = IGNPAR;
     newtio->c_oflag = 0;
     newtio->c_lflag = 0;/* set input mode (non-canonical, no echo,...) */
-    newtio->c_cc[VTIME]    = 1;   /*no timer*/
+    newtio->c_cc[VTIME]    = 1;   /*timer 0.1s*/
     newtio->c_cc[VMIN]     = CHAR_COUNT;   /* blocking read until 3 chars received */
 
     tcflush(*fd, TCIFLUSH); /* Flush data */
@@ -58,6 +58,14 @@ void parse_input(char buffer[3], SDL_Rect * rect, int *speed) {
     br_state = packet.data.bits.button_right;
     rect->x += *speed * x;
     rect->y += *speed * y;
+    if (rect->x > DEFAULT_WIN_W)
+        rect->x -= DEFAULT_WIN_W;
+    if (rect->y > DEFAULT_WIN_H)
+        rect->y -= DEFAULT_WIN_H;
+    if (rect->x < 0)
+        rect->x += DEFAULT_WIN_W;
+    if (rect->y < 0)
+        rect->y += DEFAULT_WIN_H;
 }
 
 int main()
@@ -66,7 +74,7 @@ int main()
     SDL_Rect rect = {.x = DEFAULT_WIN_W /2, .y = DEFAULT_WIN_H / 2, .w = 10, .h = 10};
 
     int fd;
-    int speed = 1;
+    int speed = 5;
     int res;
     char buff[CHAR_COUNT + 1];
     struct termios oldtio, newtio;

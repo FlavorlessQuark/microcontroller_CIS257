@@ -72,7 +72,7 @@ void get_mouse_vector() {
             else
                 pin_accumulator[V] += 1;
         }
-        rm_stat = PINB & 0b10;
+        rm_stat = PINB & 0b1;
         pin_status[V] = VERTICAL_DIST;
 }
 
@@ -141,11 +141,8 @@ void send_packets() {
 
     /*
         Here we just want to set the X direction and Y direction bits (number always starts at 0)
-
         SET_BIT simply uses an OR operation (we don't care about setting a bit to 0 since it's initial value is 0)
-
         SET_BIT(intial_value, bit to set, value to set as)
-
         !!(pin & 0b1000000) sets the value to be the sign (msb) of pin (!! operator explained in previous comment)
      */
     packet._0 = SET_BIT(
@@ -154,15 +151,13 @@ void send_packets() {
             !!((uint8_t)(pin_accumulator[H] & 0b10000000)));
 
     packet._0 |= (rm_stat);
-    printf("%c%c%c", packet._0, packet._1, packet._2);
-
+    printf("%c%c%c", packet._0, packet._1, packet._2);// This for serial
         send_bit(0); //LOW start bit
         send_byte(packet._0);
         send_byte(packet._1);
         send_byte(packet._2);
         send_bit(parity);
         send_bit(1); //HIGH STOP BIT
-
     pin_accumulator[H] = 0;
     pin_accumulator[V] = 0;
 }
@@ -210,5 +205,4 @@ int main() {
             ticks = 0;
         }
     }
-
 }
